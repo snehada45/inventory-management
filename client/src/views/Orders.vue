@@ -27,6 +27,54 @@
         </div>
       </div>
 
+      <div v-if="restockOrders.length > 0" class="card">
+        <div class="card-header">
+          <h3 class="card-title">{{ t('submittedOrders.title') }} ({{ restockOrders.length }})</h3>
+        </div>
+        <div class="table-container">
+          <table class="restock-orders-table">
+            <thead>
+              <tr>
+                <th>{{ t('submittedOrders.orderNumber') }}</th>
+                <th>{{ t('submittedOrders.warehouse') }}</th>
+                <th>{{ t('submittedOrders.items') }}</th>
+                <th>{{ t('submittedOrders.status') }}</th>
+                <th>{{ t('submittedOrders.orderDate') }}</th>
+                <th>{{ t('submittedOrders.leadTime') }}</th>
+                <th>{{ t('submittedOrders.expectedDelivery') }}</th>
+                <th>{{ t('submittedOrders.totalCost') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="restockOrder in restockOrders" :key="restockOrder.id">
+                <td><strong>{{ restockOrder.order_number }}</strong></td>
+                <td>{{ translateWarehouse(restockOrder.warehouse) }}</td>
+                <td>
+                  <details class="items-details">
+                    <summary class="items-summary">
+                      {{ t('orders.itemsCount', { count: restockOrder.items.length }) }}
+                    </summary>
+                    <div class="items-dropdown">
+                      <div v-for="item in restockOrder.items" :key="item.item_sku" class="item-entry">
+                        <span class="item-name">{{ translateProductName(item.item_name) }}</span>
+                        <span class="item-meta">{{ t('orders.quantity') }}: {{ item.quantity }} @ {{ currencySymbol }}{{ item.unit_cost }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+                <td>
+                  <span class="badge success">{{ t('submittedOrders.submitted') }}</span>
+                </td>
+                <td>{{ formatDate(restockOrder.order_date) }}</td>
+                <td>{{ t('submittedOrders.leadTimeDays', { days: restockOrder.lead_time_days }) }}</td>
+                <td>{{ formatDate(restockOrder.expected_delivery) }}</td>
+                <td><strong>{{ currencySymbol }}{{ restockOrder.total_cost.toLocaleString() }}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">{{ t('orders.allOrders') }} ({{ orders.length }})</h3>
@@ -87,7 +135,7 @@ import { useI18n } from '../composables/useI18n'
 export default {
   name: 'Orders',
   setup() {
-    const { t, currentCurrency, translateProductName, translateCustomerName } = useI18n()
+    const { t, currentCurrency, translateProductName, translateCustomerName, translateWarehouse } = useI18n()
 
     const currencySymbol = computed(() => {
       return currentCurrency.value === 'JPY' ? '¥' : '$'
@@ -95,6 +143,7 @@ export default {
     const loading = ref(true)
     const error = ref(null)
     const orders = ref([])
+    const restockOrders = ref([])
 
     // Use shared filters
     const {
@@ -124,6 +173,14 @@ export default {
       }
     }
 
+    const loadRestockOrders = async () => {
+      try {
+        restockOrders.value = await api.getRestockOrders()
+      } catch (err) {
+        console.error('Failed to load restock orders:', err)
+      }
+    }
+
     // Watch for filter changes and reload data
     watch([selectedPeriod, selectedLocation, selectedCategory, selectedStatus], () => {
       loadOrders()
@@ -146,26 +203,37 @@ export default {
     const formatDate = (dateString) => {
       const { currentLocale } = useI18n()
       const locale = currentLocale.value === 'ja' ? 'ja-JP' : 'en-US'
-      return new Date(dateString).toLocaleDateString(locale, {
+      // Date-only strings ("YYYY-MM-DD") are parsed by `new Date()` as UTC
+      // midnight; appending a local time component avoids the resulting
+      // off-by-one-day shift when rendered via toLocaleDateString() in
+      // timezones behind UTC. Skip strings that already include a time part.
+      const hasTimeComponent = /T/.test(dateString)
+      const date = new Date(hasTimeComponent ? dateString : `${dateString}T00:00:00`)
+      return date.toLocaleDateString(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       })
     }
 
-    onMounted(loadOrders)
+    onMounted(() => {
+      loadOrders()
+      loadRestockOrders()
+    })
 
     return {
       t,
       loading,
       error,
       orders,
+      restockOrders,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
       currencySymbol,
       translateProductName,
-      translateCustomerName
+      translateCustomerName,
+      translateWarehouse
     }
   }
 }
