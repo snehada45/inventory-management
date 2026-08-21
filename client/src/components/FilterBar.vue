@@ -106,7 +106,7 @@ export default {
   border-bottom: 1px solid #e2e8f0;
   padding: 0.75rem 0;
   position: sticky;
-  top: 70px;
+  top: 0;
   z-index: 90;
 }
 
@@ -190,5 +190,19 @@ export default {
 .reset-filters-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* Below 768px the sidebar collapses into a top bar (see Sidebar.vue) and
+   the app shell stacks vertically; let the filter controls wrap instead
+   of forcing a fixed-width row that would overflow the viewport. */
+@media (max-width: 768px) {
+  .filters-container {
+    flex-wrap: wrap;
+    padding: 0 1rem;
+  }
+
+  .filters-grid {
+    flex-wrap: wrap;
+  }
 }
 </style>
