@@ -106,7 +106,7 @@ export default {
   border-bottom: 1px solid #e2e8f0;
   padding: 0.75rem 0;
   position: sticky;
-  top: 70px;
+  top: 0;
   z-index: 90;
 }
 
@@ -190,5 +190,22 @@ export default {
 .reset-filters-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* Below 1024px the sidebar is either icon-only (768-1023px) or a full
+   drawer (<768px, see Sidebar.vue), narrowing the available width until
+   the 4 filters + reset button no longer fit on one row. Wrap the grid
+   instead of letting it overflow past the viewport edge. Row-gap keeps
+   wrapped rows from looking cramped. */
+@media (max-width: 1024px) {
+  .filters-container {
+    flex-wrap: wrap;
+    padding: 0 1rem;
+  }
+
+  .filters-grid {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
 }
 </style>

@@ -812,7 +812,10 @@ export default {
 
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* minmax(0, 1fr) lets tracks shrink below their content's max-content size
+     (plain 1fr defaults to min-width: auto, which prevented shrinking and
+     forced horizontal overflow at narrower viewport widths) */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.25rem;
   margin-bottom: 1.5rem;
 }
@@ -860,7 +863,9 @@ export default {
 /* Order Health Dashboard Styles */
 .order-health-container {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) allows tracks to shrink below the 200px donut SVG's
+     max-content size, avoiding forced horizontal overflow (see .charts-grid) */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: center;
   padding: 1rem;
@@ -1267,5 +1272,22 @@ export default {
   background: #475569;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(100, 116, 139, 0.3);
+}
+
+/* Below 1024px (matches FilterBar's breakpoint), the two-column charts-grid
+   cell shrinks too far for the 200px order-health donut + metrics to sit
+   side-by-side without cramping, so stack both grids to a single column. */
+@media (max-width: 1024px) {
+  .charts-grid {
+    /* Keep minmax(0, 1fr) even in the single-column fallback: plain 1fr's
+       min-width: auto would otherwise size the track to its widest child's
+       max-content (e.g. the Inventory Shortages / Top Products tables),
+       reintroducing the same overflow bug this breakpoint is meant to fix. */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .order-health-container {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>
