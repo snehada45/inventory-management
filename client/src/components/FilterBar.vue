@@ -192,10 +192,12 @@ export default {
   height: 18px;
 }
 
-/* Below 768px the sidebar collapses into a top bar (see Sidebar.vue) and
-   the app shell stacks vertically; let the filter controls wrap instead
-   of forcing a fixed-width row that would overflow the viewport. */
-@media (max-width: 768px) {
+/* Below 1024px the sidebar is either icon-only (768-1023px) or a full
+   drawer (<768px, see Sidebar.vue), narrowing the available width until
+   the 4 filters + reset button no longer fit on one row. Wrap the grid
+   instead of letting it overflow past the viewport edge. Row-gap keeps
+   wrapped rows from looking cramped. */
+@media (max-width: 1024px) {
   .filters-container {
     flex-wrap: wrap;
     padding: 0 1rem;
@@ -203,6 +205,7 @@ export default {
 
   .filters-grid {
     flex-wrap: wrap;
+    row-gap: 0.75rem;
   }
 }
 </style>

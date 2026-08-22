@@ -32,10 +32,32 @@
       @click="isDrawerOpen = false"
     ></div>
 
-    <aside class="sidebar" :class="{ 'sidebar-open': isDrawerOpen }">
+    <aside class="sidebar" :class="{ 'sidebar-open': isDrawerOpen, 'sidebar-collapsed': showCollapsed }">
       <div class="brand">
-        <h1 class="brand-name">{{ t('nav.companyName') }}</h1>
-        <span class="brand-subtitle">{{ t('nav.subtitle') }}</span>
+        <template v-if="!showCollapsed">
+          <h1 class="brand-name">{{ t('nav.companyName') }}</h1>
+          <span class="brand-subtitle">{{ t('nav.subtitle') }}</span>
+        </template>
+        <div v-else class="brand-monogram" :title="t('nav.companyName')">
+          {{ t('nav.companyName').charAt(0) }}
+        </div>
+        <button
+          class="collapse-toggle"
+          type="button"
+          @click="toggleCollapsed"
+          :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        >
+          <svg
+            class="collapse-icon"
+            :class="{ 'collapse-icon-flipped': collapsed }"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+          >
+            <path d="M9 3L4.5 7L9 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -43,6 +65,7 @@
           to="/"
           class="nav-link"
           :class="{ active: $route.path === '/' }"
+          :title="t('nav.overview')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -56,6 +79,7 @@
           to="/inventory"
           class="nav-link"
           :class="{ active: $route.path === '/inventory' }"
+          :title="t('nav.inventory')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -70,6 +94,7 @@
           to="/orders"
           class="nav-link"
           :class="{ active: $route.path === '/orders' }"
+          :title="t('nav.orders')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -84,6 +109,7 @@
           to="/demand"
           class="nav-link"
           :class="{ active: $route.path === '/demand' }"
+          :title="t('nav.demandForecast')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -97,6 +123,7 @@
           to="/spending"
           class="nav-link"
           :class="{ active: $route.path === '/spending' }"
+          :title="t('nav.finance')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -111,6 +138,7 @@
           to="/restocking"
           class="nav-link"
           :class="{ active: $route.path === '/restocking' }"
+          :title="t('nav.restocking')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -125,6 +153,7 @@
           to="/reports"
           class="nav-link"
           :class="{ active: $route.path === '/reports' }"
+          :title="t('nav.reports')"
           @click="isDrawerOpen = false"
         >
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -149,7 +178,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../composables/useI18n'
 import LanguageSwitcher from './LanguageSwitcher.vue'
@@ -166,6 +195,71 @@ const isDrawerOpen = ref(false)
 // click handler on the link itself doesn't fire, e.g. browser back/forward)
 watch(() => route.path, () => {
   isDrawerOpen.value = false
+})
+
+const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed'
+
+const collapsed = ref(false)
+// Once the user explicitly clicks the toggle, their choice is persisted and
+// we stop auto-deriving the collapsed state from viewport width on resize.
+const hasExplicitOverride = ref(false)
+// Tracks whether we're currently below the 768px mobile-drawer breakpoint,
+// so the icon-only collapsed appearance (a >=768px concept only) never
+// leaks into the mobile off-canvas drawer's template output.
+const isMobileViewport = ref(typeof window !== 'undefined' && window.innerWidth < 768)
+
+// The collapsed appearance only ever applies at >=768px; below that the
+// mobile drawer always renders full labels regardless of `collapsed`.
+const showCollapsed = computed(() => collapsed.value && !isMobileViewport.value)
+
+// Tablet range (768-1023px) defaults to collapsed; >=1024px defaults expanded.
+// Below 768px the mobile drawer takes over, so this value is irrelevant there.
+const getWidthDefault = () => {
+  const width = window.innerWidth
+  return width >= 768 && width < 1024
+}
+
+const handleResize = () => {
+  isMobileViewport.value = window.innerWidth < 768
+  // Only auto-adjust while the user hasn't made an explicit choice, and
+  // only within the >=768px range (below that, the mobile drawer applies).
+  if (hasExplicitOverride.value) return
+  if (window.innerWidth < 768) return
+  collapsed.value = getWidthDefault()
+}
+
+const toggleCollapsed = () => {
+  collapsed.value = !collapsed.value
+  hasExplicitOverride.value = true
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed.value))
+  } catch (err) {
+    // localStorage can throw in some browser contexts (e.g. private mode
+    // with storage disabled); the in-memory state still updates correctly.
+    console.error('Failed to persist sidebar-collapsed preference:', err)
+  }
+}
+
+onMounted(() => {
+  let stored = null
+  try {
+    stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+  } catch (err) {
+    stored = null
+  }
+
+  if (stored !== null) {
+    collapsed.value = stored === 'true'
+    hasExplicitOverride.value = true
+  } else {
+    collapsed.value = getWidthDefault()
+  }
+
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -189,14 +283,75 @@ watch(() => route.path, () => {
   flex-direction: column;
   position: sticky;
   top: 0;
+  transition: width 0.2s ease;
+}
+
+.sidebar.sidebar-collapsed {
+  width: 72px;
 }
 
 .brand {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   padding: 1.5rem 1.25rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.sidebar-collapsed .brand {
+  padding: 1.5rem 0.75rem;
+  align-items: center;
+}
+
+.brand-monogram {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-accent-soft, #eff6ff);
+  color: var(--color-accent, #2563eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
+.collapse-toggle {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--color-muted, #64748b);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.collapse-toggle:hover {
+  background: var(--color-border-light, #f1f5f9);
+  color: var(--color-ink, #0f172a);
+}
+
+.sidebar-collapsed .collapse-toggle {
+  position: static;
+  margin-top: 0.5rem;
+}
+
+.collapse-icon {
+  transition: transform 0.2s ease;
+}
+
+.collapse-icon-flipped {
+  transform: rotate(180deg);
 }
 
 .brand-name {
@@ -218,6 +373,10 @@ watch(() => route.path, () => {
   gap: 0.125rem;
   padding: 0.75rem;
   overflow-y: auto;
+}
+
+.sidebar-collapsed .sidebar-nav {
+  padding: 0.75rem 0.5rem;
 }
 
 .nav-link {
@@ -250,6 +409,16 @@ watch(() => route.path, () => {
   border-left-color: var(--color-accent, #2563eb);
 }
 
+.sidebar-collapsed .nav-link {
+  justify-content: center;
+  gap: 0;
+  padding: 0.625rem;
+}
+
+.sidebar-collapsed .nav-link span {
+  display: none;
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 1rem 0.75rem;
@@ -257,6 +426,10 @@ watch(() => route.path, () => {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
+}
+
+.sidebar-collapsed .sidebar-footer {
+  padding: 1rem 0.5rem;
 }
 
 .sidebar-footer :deep(.language-switcher),
@@ -276,6 +449,38 @@ watch(() => route.path, () => {
 .sidebar-footer :deep(.dropdown-menu) {
   top: auto;
   bottom: calc(100% + 0.5rem);
+}
+
+/* Collapsed footer: shrink the LanguageSwitcher/ProfileMenu buttons to
+   square icon-only controls by hiding their label/chevron text (owned by
+   the child components) via :deep() rather than editing those files. */
+.sidebar-collapsed .sidebar-footer :deep(.language-button),
+.sidebar-collapsed .sidebar-footer :deep(.profile-button) {
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.sidebar-collapsed .sidebar-footer :deep(.language-label),
+.sidebar-collapsed .sidebar-footer :deep(.profile-name),
+.sidebar-collapsed .sidebar-footer :deep(.language-button > .chevron),
+.sidebar-collapsed .sidebar-footer :deep(.profile-button > .chevron) {
+  display: none;
+}
+
+/* Dropdown contents (opened menus) must keep their full label/chevron
+   text — only the closed-button labels above are hidden. */
+.sidebar-collapsed .sidebar-footer :deep(.dropdown-menu .chevron),
+.sidebar-collapsed .sidebar-footer :deep(.dropdown-menu span) {
+  display: inline;
+}
+
+/* The dropdown-menu is normally anchored with `right: 0` relative to its
+   (now much narrower, 72px) trigger button, which pushes the 160-280px
+   wide menu mostly off-screen to the left. Anchor it to the left edge of
+   the trigger instead so it opens into the visible content area. */
+.sidebar-collapsed .sidebar-footer :deep(.dropdown-menu) {
+  left: 0;
+  right: auto;
 }
 
 /* Mobile top bar - hidden by default on desktop */
@@ -349,6 +554,55 @@ watch(() => route.path, () => {
   .sidebar.sidebar-open {
     transform: translateX(0);
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Icon-only collapse is a >=768px concept only — the off-canvas drawer
+     always shows the full-width, fully-labelled sidebar regardless of the
+     `collapsed` state (which may have been true before the viewport
+     shrank into mobile range). */
+  .sidebar.sidebar-collapsed {
+    width: 260px;
+  }
+
+  .sidebar-collapsed .brand {
+    padding: 1.5rem 1.25rem;
+    align-items: stretch;
+  }
+
+  /* The manual collapse toggle is a >=768px desktop concept only. */
+  .collapse-toggle {
+    display: none;
+  }
+
+  .sidebar-collapsed .sidebar-nav {
+    padding: 0.75rem;
+  }
+
+  .sidebar-collapsed .nav-link {
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .sidebar-collapsed .nav-link span {
+    display: inline;
+  }
+
+  .sidebar-collapsed .sidebar-footer {
+    padding: 1rem 0.75rem;
+  }
+
+  .sidebar-collapsed .sidebar-footer :deep(.language-button),
+  .sidebar-collapsed .sidebar-footer :deep(.profile-button) {
+    justify-content: flex-start;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .sidebar-collapsed .sidebar-footer :deep(.language-label),
+  .sidebar-collapsed .sidebar-footer :deep(.profile-name),
+  .sidebar-collapsed .sidebar-footer :deep(.language-button > .chevron),
+  .sidebar-collapsed .sidebar-footer :deep(.profile-button > .chevron) {
+    display: inline;
   }
 
   .drawer-scrim {
